@@ -27,7 +27,13 @@ class aREST_UI: public aREST {
 
 public:
 
-aREST_UI() {
+aREST_UI()
+  : buttons_index(0)
+  , functions_index(0)
+  , button_callbacks_index(0)
+  , sliders_index(0)
+  , int_labels_index(0)
+{
 
 }
 
@@ -60,6 +66,45 @@ void callFunction(char * functionName, char * type){
   callFunctionTypes[functions_index] = type;
   functions_index++;
 
+}
+
+typedef int(*ButtonCallback)(bool);
+
+// Create Function Button
+void buttonFunction(char * button, ButtonCallback callback) {
+  buttonFunctionNames[button_callbacks_index] = button;
+  buttonCallbacks[button_callbacks_index] = callback;
+  button_callbacks_index++;
+}
+
+// Callback for button functions
+int buttonCallback(String answer) {
+  // Index of argument separator
+  int arg_sep = answer.indexOf('&');
+
+  // Index (hopefully) of separator for second argument
+  int value_sep = answer.indexOf('=', arg_sep);
+
+  // TODO: remove when debugging is complete
+  set_id(answer.c_str());
+
+  // Validate separators
+  if ( arg_sep == -1 || value_sep == -1 ) return -1;
+
+  // Check that first argument is name
+  String name = answer.substring(0, arg_sep);
+
+  // Check that second argument is value
+  if ( answer.substring(arg_sep+1, value_sep) != "value" ) return -3;
+  bool value = answer.substring(value_sep+1) != "0";
+
+  for ( int i=0; i<button_callbacks_index; i++) {
+    if ( name == buttonFunctionNames[i]) {
+      buttonCallbacks[i](value);
+    }
+  }
+
+  return value?1:0;
 }
 
 // Create slider
@@ -140,6 +185,17 @@ virtual void root_answer() {
       }
     }
 
+    // Callback Buttons UI
+    for (int i = 0; i < button_callbacks_index; i++) {
+      addToBuffer("<div class=\"row\">");
+      addToBuffer("<div class=\"col-md-2\"><button class=\"btn btn-block btn-lg btn-primary\" id='btn_push_");
+      addToBuffer(buttonFunctionNames[i]);
+      addToBuffer("'>");
+      addToBuffer(buttonFunctionNames[i]);
+      addToBuffer("</button></div>");
+      addToBuffer("</div>");
+    }
+
     // Sliders UI
     for (int i = 0; i < sliders_index; i++) {
       addToBuffer("<div class=\"row\">");
@@ -167,8 +223,16 @@ virtual void root_answer() {
 
     addToBuffer("</div>");
 
-    addToBuffer("<script>$( document ).ready(function() {");
-
+    addToBuffer("<script>$( document ).ready(function() {\
+b = document.createElement('button');\
+if ('ontouchstart' in b) {\
+  vmousedown = 'touchstart';\
+  vmouseup = 'touchend';\
+} else {\
+  vmousedown = 'mousedown';\
+  vmouseup = 'mouseup';\
+}");
+    
     // Buttons JavaScript
     for (int i = 0; i < buttons_index; i++) {
       addToBuffer("$('#btn_on");
@@ -190,6 +254,20 @@ virtual void root_answer() {
       addToBuffer("').click(function() {$.getq('queue','/");
       addToBuffer(callFunctionNames[i]);
       addToBuffer("');});");
+    }
+
+    // Button Functions JavaScript
+    for (int i = 0; i < button_callbacks_index; i++) {
+      addToBuffer("$('#btn_push_");
+      addToBuffer(buttonFunctionNames[i]);
+      addToBuffer("').bind(vmousedown, function() {$.getq('queue','/ui_callback?button=");
+      addToBuffer(buttonFunctionNames[i]);
+      addToBuffer("&value=1');});");
+      addToBuffer("$('#btn_push_");
+      addToBuffer(buttonFunctionNames[i]);
+      addToBuffer("').bind(vmouseup, function() {$.getq('queue','/ui_callback?button=");
+      addToBuffer(buttonFunctionNames[i]);
+      addToBuffer("&value=0');});");
     }
 
     // Sliders JavaScript
@@ -234,13 +312,17 @@ private:
   char * callFunctionTypes[10];
   int functions_index;
 
+  // Button Functions array
+  char * buttonFunctionNames[10];
+  ButtonCallback buttonCallbacks[10];
+  int button_callbacks_index;
+
   // Buttons array
   int sliders[10];
   int sliders_index;
 
   // Indicators array
   uint8_t int_labels_index;
-  int * int_labels_variables[10];
   char * int_labels_names[10];
 
 };
